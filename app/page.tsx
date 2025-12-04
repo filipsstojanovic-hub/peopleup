@@ -187,6 +187,10 @@ export default function Home() {
       // Check if mobile device
       const isMobile = window.innerWidth < 768;
 
+      // Check if iOS device (iPhone/iPad)
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+                    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
       // Check if user prefers reduced motion
       const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -204,23 +208,34 @@ export default function Home() {
       // Configure ScrollTrigger for mobile
       ScrollTrigger.config({
         autoRefreshEvents: "visibilitychange,DOMContentLoaded,load",
-        ignoreMobileResize: true
+        ignoreMobileResize: isIOS, // iOS Safari needs special handling
       });
 
-      // Initialize Lenis smooth scrolling with optimized settings
-      const lenis = new Lenis({
-        duration: isMobile ? 0.6 : 0.8,
-        easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-      });
+      // iOS: Disable Lenis, use native scroll (better compatibility)
+      // Android: Use Lenis for smooth scroll
+      let lenis: Lenis | null = null;
 
-      // Connect Lenis with GSAP ScrollTrigger
-      lenis.on('scroll', ScrollTrigger.update);
+      if (!isIOS) {
+        // Initialize Lenis smooth scrolling (only for non-iOS)
+        lenis = new Lenis({
+          duration: isMobile ? 0.6 : 0.8,
+          easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+        });
 
-      gsap.ticker.add((time) => {
-        lenis.raf(time * 1000);
-      });
+        // Connect Lenis with GSAP ScrollTrigger
+        lenis.on('scroll', ScrollTrigger.update);
 
-      gsap.ticker.lagSmoothing(0);
+        gsap.ticker.add((time) => {
+          lenis.raf(time * 1000);
+        });
+
+        gsap.ticker.lagSmoothing(0);
+      } else {
+        // iOS: Use native scroll with ScrollTrigger
+        ScrollTrigger.defaults({
+          scroller: window,
+        });
+      }
 
     // Create master timeline for sequenced layer animations
     const layerTl = gsap.timeline({
@@ -228,13 +243,18 @@ export default function Home() {
         trigger: heroRef.current,
         start: 'top top',
         end: '+=200%', // Pin for DOUBLE viewport height for sequence
-        scrub: 1,
+        scrub: isIOS ? 0.5 : 1, // iOS needs lighter scrub
         pin: true,
-        pinType: isMobile ? 'fixed' : 'fixed',
+        pinType: isIOS ? 'transform' : 'fixed', // iOS works better with transform
         anticipatePin: 1,
         invalidateOnRefresh: true,
         refreshPriority: 1,
-        onRefresh: () => ScrollTrigger.refresh(),
+        onRefresh: () => {
+          if (isIOS) {
+            // iOS-specific refresh delay
+            setTimeout(() => ScrollTrigger.refresh(), 100);
+          }
+        },
       }
     });
 
@@ -503,7 +523,9 @@ export default function Home() {
         ScrollTrigger.getAll().forEach((trigger) => {
           trigger.kill(true);
         });
-        lenis.destroy();
+        if (lenis) {
+          lenis.destroy();
+        }
         window.removeEventListener('orientationchange', handleOrientationChange);
         window.removeEventListener('resize', handleResize);
       };
@@ -881,7 +903,7 @@ export default function Home() {
         style={{ isolation: 'isolate' }}
       >
         {/* Layer 1 - Video Background (Bottom) */}
-        <div className="absolute inset-0 bg-black z-[1] overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-800 to-slate-900 z-[1] overflow-hidden" style={{ WebkitOverflowScrolling: 'touch' }}>
           {/* Background Video */}
           <video
             ref={videoRef}
@@ -891,7 +913,11 @@ export default function Home() {
             playsInline
             preload="auto"
             poster="/images/pexels-fauxels-3184465.jpg"
-            style={{ willChange: 'auto' }}
+            style={{
+              willChange: 'auto',
+              transform: 'translate3d(0, 0, 0)',
+              WebkitTransform: 'translate3d(0, 0, 0)',
+            }}
           >
             <source src="/videos/3252123-compressed.mp4" type="video/mp4" />
             <source src="/videos/3252123-uhd_3840_2160_25fps.mp4" type="video/mp4" />
