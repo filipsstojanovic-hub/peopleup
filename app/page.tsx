@@ -198,6 +198,15 @@ export default function Home() {
         return;
       }
 
+      // Enable ScrollTrigger normalization for mobile (fixes address bar issues)
+      ScrollTrigger.normalizeScroll(true);
+
+      // Configure ScrollTrigger for mobile
+      ScrollTrigger.config({
+        autoRefreshEvents: "visibilitychange,DOMContentLoaded,load",
+        ignoreMobileResize: true
+      });
+
       // Initialize Lenis smooth scrolling with optimized settings
       const lenis = new Lenis({
         duration: isMobile ? 0.6 : 0.8,
@@ -221,8 +230,11 @@ export default function Home() {
         end: '+=200%', // Pin for DOUBLE viewport height for sequence
         scrub: 1,
         pin: true,
+        pinType: isMobile ? 'fixed' : 'fixed',
         anticipatePin: 1,
         invalidateOnRefresh: true,
+        refreshPriority: 1,
+        onRefresh: () => ScrollTrigger.refresh(),
       }
     });
 
@@ -470,12 +482,30 @@ export default function Home() {
         });
       }, 100);
 
+      // Mobile-specific: Handle orientation change and resize
+      const handleOrientationChange = () => {
+        setTimeout(() => {
+          ScrollTrigger.refresh(true);
+        }, 300);
+      };
+
+      const handleResize = () => {
+        if (isMobile) {
+          ScrollTrigger.refresh(true);
+        }
+      };
+
+      window.addEventListener('orientationchange', handleOrientationChange);
+      window.addEventListener('resize', handleResize, { passive: true });
+
       return () => {
         // Proper cleanup
         ScrollTrigger.getAll().forEach((trigger) => {
           trigger.kill(true);
         });
         lenis.destroy();
+        window.removeEventListener('orientationchange', handleOrientationChange);
+        window.removeEventListener('resize', handleResize);
       };
     }, 200); // Delay initialization slightly after loading screen
 
@@ -742,7 +772,7 @@ export default function Home() {
       {/* Navigation Bar */}
       <nav
         aria-label="Main navigation"
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isNavbarVisible ? 'translate-y-0' : '-translate-y-full'} ${isNavbarScrolled ? 'bg-white shadow-md' : 'bg-transparent'}`}>
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${isNavbarVisible ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0'} ${isNavbarScrolled ? 'bg-white shadow-md' : 'bg-transparent'}`}>
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 sm:h-20">
             {/* Logo */}
@@ -859,7 +889,8 @@ export default function Home() {
             loop
             muted
             playsInline
-            preload="metadata"
+            preload="auto"
+            poster="/images/pexels-fauxels-3184465.jpg"
             style={{ willChange: 'auto' }}
           >
             <source src="/videos/3252123-compressed.mp4" type="video/mp4" />
